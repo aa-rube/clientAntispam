@@ -15,6 +15,14 @@ public class UserClient {
     private boolean isPaid;
     private LocalDateTime subscriptionEnd;
     private boolean checkPhoto;
+    private boolean tryPeriod;
+
+    public boolean isTryPeriod() {
+        return tryPeriod;
+    }
+    public void setTryPeriod(boolean tryPeriod) {
+        this.tryPeriod = tryPeriod;
+    }
     public boolean isCheckPhoto() {
         return checkPhoto;
     }

@@ -41,7 +41,7 @@ public class AdminMessage {
 
     public SendMessage vipUsersMainMenu(StringBuilder builder, Long chatId) {
         builder.setLength(0);
-        builder.append("Меню для управления списком юзеров исключений");
+        builder.append("Меню для управления VIP-пользователей. Сообшения пользователей из этого списка никогда не обрабатываюся ботом: не удаляются и не считаются посты и время начала подписки, если вы добавите их в пртнеры");
         return getSendMessage(chatId, builder.toString(), adminKeyboard.getOptionsForVipUsers());
     }
 
@@ -64,38 +64,4 @@ public class AdminMessage {
         return getSendMessage(chatId, builder.toString(), adminKeyboard.getBackToVipOption());
     }
 
-    public String getCaptionForScreenShot(StringBuilder builder, Long chatId) {
-        Optional<UserClient> optClient = userClientService.findByChatId(chatId);
-        if (optClient.isPresent()) {
-            UserClient client = optClient.get();
-            builder.setLength(0);
-
-            return builder.append("Пользователь ").append(client.getUserClintName())
-                    .append(" отправил скриншот об оплате. Проверте сумму и реквезиты.").toString();
-
-        }
-
-        return "Произошла ошибка. Клиент не найден в базе данных.";
-    }
-
-
-    public SendDocument screenDoc(StringBuilder builder,Long chatId, Long ownerChatId, Message message) {
-        SendDocument screen = new SendDocument();
-        screen.setChatId(ownerChatId);
-        screen.setDocument(new InputFile(message.getDocument().getFileId()));
-        screen.setCaption(getCaptionForScreenShot(builder,chatId));
-        screen.setReplyMarkup(keyboard.getPayKeyboard(chatId));
-        return screen;
-
-    }
-
-    public SendPhoto screenPhoto(StringBuilder builder,Long chatId, Long ownerChatId, Message message) {
-        SendPhoto screen = new SendPhoto();
-        screen.setChatId(ownerChatId);
-        screen.setPhoto(new InputFile(message.getPhoto().get(0).getFileId()));
-        screen.setCaption(getCaptionForScreenShot(builder, chatId));
-        screen.setReplyMarkup(keyboard.getPayKeyboard(chatId));
-        return screen;
-
-    }
 }

@@ -7,8 +7,14 @@ import app.service.UserClientService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+
+import java.util.Optional;
 
 @Service
 public class GodMessage {
@@ -18,6 +24,8 @@ public class GodMessage {
     private UserClientService userClientService;
     @Autowired
     private UserClientService clientService;
+    @Autowired
+    private UserKeyboard userKeyboard;
 
     private SendMessage getSendMessage(Long chatId, String text, InlineKeyboardMarkup markup) {
         SendMessage msg = new SendMessage();
@@ -67,5 +75,40 @@ public class GodMessage {
             builder.append("Произошла ошибка! Повторите");
         }
         return getSendMessage(ownerChatId, builder.toString(), null);
+    }
+
+    public String getCaptionForScreenShot(StringBuilder builder, Long chatId) {
+        Optional<UserClient> optClient = userClientService.findByChatId(chatId);
+        if (optClient.isPresent()) {
+            UserClient client = optClient.get();
+            builder.setLength(0);
+
+            return builder.append("Пользователь ").append(client.getUserClintName())
+                    .append(" отправил скриншот об оплате. Проверте сумму и реквезиты.").toString();
+
+        }
+
+        return "Произошла ошибка. Клиент не найден в базе данных.";
+    }
+
+
+    public SendDocument screenDoc(StringBuilder builder, Long chatId, Long ownerChatId, Message message) {
+        SendDocument screen = new SendDocument();
+        screen.setChatId(ownerChatId);
+        screen.setDocument(new InputFile(message.getDocument().getFileId()));
+        screen.setCaption(getCaptionForScreenShot(builder,chatId));
+        screen.setReplyMarkup(userKeyboard.getPayKeyboard(chatId));
+        return screen;
+
+    }
+
+    public SendPhoto screenPhoto(StringBuilder builder, Long chatId, Long ownerChatId, Message message) {
+        SendPhoto screen = new SendPhoto();
+        screen.setChatId(ownerChatId);
+        screen.setPhoto(new InputFile(message.getPhoto().get(0).getFileId()));
+        screen.setCaption(getCaptionForScreenShot(builder, chatId));
+        screen.setReplyMarkup(userKeyboard.getPayKeyboard(chatId));
+        return screen;
+
     }
 }

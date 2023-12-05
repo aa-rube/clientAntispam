@@ -25,16 +25,23 @@ public class UserKeyboard {
         return inLineKeyBoard;
     }
 
-    public InlineKeyboardMarkup startPay() {
+    public InlineKeyboardMarkup startPay(boolean tryOff) {
         InlineKeyboardMarkup inLineKeyBoard = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> keyboardMatrix = new ArrayList<>();
+
         List<InlineKeyboardButton> firstRow = new ArrayList<>();
-        InlineKeyboardButton msg = new InlineKeyboardButton();
+        InlineKeyboardButton screen = new InlineKeyboardButton();
+        screen.setText("Отправить скриншот об оплате");
+        screen.setCallbackData("sendPayScreen");
+        firstRow.add(screen);
 
-        msg.setText("Отправить скриншот об оплате");
-        msg.setCallbackData("sendPayScreen");
+        if (!tryOff) {
+            InlineKeyboardButton fiveDays = new InlineKeyboardButton();
+            fiveDays.setText("Пробный период");
+            fiveDays.setCallbackData("5day");
+            firstRow.add(fiveDays);
+        }
 
-        firstRow.add(msg);
         keyboardMatrix.add(firstRow);
         inLineKeyBoard.setKeyboard(keyboardMatrix);
         return inLineKeyBoard;

@@ -93,10 +93,12 @@ public class Chat extends TelegramLongPollingBot {
     @Scheduled(fixedRate = 10800000 * 2)
     private void checkEndTime() {
         LocalDateTime now = LocalDateTime.now();
+
         for (UserClient client : userClientService.findAll()) {
             if (client.isPaid() && client.getSubscriptionEnd().isBefore(now)) {
                 client.setPaid(false);
                 userClientService.save(client);
+                executeMsg(userMessage.payIsOff(builder, client));
             }
         }
     }
@@ -205,9 +207,10 @@ public class Chat extends TelegramLongPollingBot {
         int msgId = 0;
         try {
             if (message.hasDocument()) {
-               msgId = execute(adminMessage.screenDoc(builder,chatId, getOwnerChatId(), message)).getMessageId();
+               msgId = execute(godMessage.screenDoc(builder,chatId, getOwnerChatId(), message)).getMessageId();
             }
-           msgId = execute(adminMessage.screenPhoto(builder,chatId, getOwnerChatId(), message)).getMessageId();
+           msgId = execute(godMessage.screenPhoto(builder,chatId, getOwnerChatId(), message)).getMessageId();
+            execute(userMessage.waitForCheckThePay(builder, chatId));
         } catch (Exception e) {}
         sendApproveMsg.put(chatId, msgId);
     }
@@ -438,7 +441,6 @@ public class Chat extends TelegramLongPollingBot {
         advertisersHandler(update, chatId, data);
         vipUsersHandler(chatId, data);
     }
-
     private void startMenuHandler(Update update, Long chatId, String data) {
         try {
             int i = Integer.parseInt(data);
@@ -513,13 +515,13 @@ public class Chat extends TelegramLongPollingBot {
                 executeMsg(advMessage.addCountPostKeys(builder,chatId, createNewAdvUser.get(chatId)));
             }
 
-            if (data.equals("clientList") && chatId.equals(getOwnerChatId())) {
+            if (data.equals("clientList")
+                    && chatId.equals(getOwnerChatId())) {
                 deleteMessage(chatId);
                 executeMsg(godMessage.clientsList(builder, getOwnerChatId()));
             }
         }
     }
-
     private void stopWordHandler(Long chatId, String data) {
         try {
             int i = Integer.parseInt(data);
@@ -596,6 +598,15 @@ public class Chat extends TelegramLongPollingBot {
         Long chatId = update.getCallbackQuery().getFrom().getId();
         String data = update.getCallbackQuery().getData();
 
+        if (data.equals("5day")) {
+            deleteMessage(chatId);
+            executeMsg(userMessage.payUpdate(builder,chatId, 2));
+            clients.put(chatId, userClientService.findByChatId(chatId).get());
+            executeMsg(startMessage.getMainClientMenu(builder,chatId, clients.get(chatId).isCheckPhoto()));
+            executeMsg(userMessage.fiveDaysTryMsg(builder, getOwnerChatId(), clients.get(chatId)));
+            return;
+        }
+
         if (data.contains("pay_")) {
             String[] payData = data.split("_");
             Long chatUserId = Long.valueOf(payData[1]);
@@ -646,16 +657,23 @@ public class Chat extends TelegramLongPollingBot {
                 return;
             }
 
-            if (clients.get(chatId) != null && clients.get(chatId).isPaid()) {
+            if (clients.get(chatId) != null && clients.get(chatId).isPaid() && clients.get(chatId).isTryPeriod()) {
                 clearWaitList(chatId);
                 executeMsg(startMessage.getMainClientMenu(builder,chatId, clients.get(chatId).isCheckPhoto()));
+                return;
+            }
+
+            if (clients.get(chatId) != null && !clients.get(chatId).isPaid() && clients.get(chatId).isTryPeriod()) {
+                clearWaitList(chatId);
+                executeMsg(userMessage.payIsOff(builder,clients.get(chatId)));
                 return;
             }
 
             executeMsg(userMessage.getStartMessage(builder,chatId));
         }
 
-        if (text.contains("/deleteClient_") && chatId.equals(getOwnerChatId())) {
+        if (text.contains("/deleteClient_")
+                && chatId.equals(getOwnerChatId())) {
             executeMsg(godMessage.deleteClient(builder, getOwnerChatId(), text));
             init();
         }
