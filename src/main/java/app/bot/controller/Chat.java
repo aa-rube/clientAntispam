@@ -150,6 +150,9 @@ public class Chat extends TelegramLongPollingBot {
 
         try {
             if (update.hasCallbackQuery()) {
+                Long chatId = update.getCallbackQuery().getFrom().getId();
+                if(!clients.get(chatId).isPaid() && !chatId.equals(getOwnerChatId())) return;
+
                 userClientHandler(update);
                 callBackDataHandle(update);
                 return;
@@ -598,7 +601,6 @@ public class Chat extends TelegramLongPollingBot {
         Long chatId = update.getCallbackQuery().getFrom().getId();
         String data = update.getCallbackQuery().getData();
 
-        if(!clients.get(chatId).isPaid() && !chatId.equals(getOwnerChatId())) return;
 
         if (data.equals("5day")) {
             deleteMessage(chatId);
