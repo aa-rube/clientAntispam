@@ -12,45 +12,56 @@ public class UserClient {
     @Id
     private Long chatId;
     private String userClintName;
-    private boolean isPaid;
+    private int isPaid;
     private LocalDateTime subscriptionEnd;
-    private boolean checkPhoto;
-    private boolean tryPeriod;
+    private int checkPhoto;
+    private int tryPeriod;
 
-    public boolean isTryPeriod() {
-        return tryPeriod;
-    }
-    public void setTryPeriod(boolean tryPeriod) {
-        this.tryPeriod = tryPeriod;
-    }
-    public boolean isCheckPhoto() {
-        return checkPhoto;
-    }
-    public void setCheckPhoto(boolean checkPhoto) {
-        this.checkPhoto = checkPhoto;
-    }
     public Long getChatId() {
         return chatId;
     }
+
     public void setChatId(Long chatId) {
         this.chatId = chatId;
     }
+
     public String getUserClintName() {
         return userClintName;
     }
+
     public void setUserClintName(String userClintName) {
         this.userClintName = userClintName;
     }
-    public boolean isPaid() {
+
+    public int getIsPaid() {
         return isPaid;
     }
-    public void setPaid(boolean paid) {
-        isPaid = paid;
+
+    public void setIsPaid(int isPaid) {
+        this.isPaid = isPaid;
     }
+
     public LocalDateTime getSubscriptionEnd() {
         return subscriptionEnd;
     }
+
     public void setSubscriptionEnd(LocalDateTime subscriptionEnd) {
         this.subscriptionEnd = subscriptionEnd;
+    }
+
+    public int getCheckPhoto() {
+        return checkPhoto;
+    }
+
+    public void setCheckPhoto(int checkPhoto) {
+        this.checkPhoto = checkPhoto;
+    }
+
+    public int getTryPeriod() {
+        return tryPeriod;
+    }
+
+    public void setTryPeriod(int tryPeriod) {
+        this.tryPeriod = tryPeriod;
     }
 }

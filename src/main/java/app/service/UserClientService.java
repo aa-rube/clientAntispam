@@ -28,8 +28,8 @@ public class UserClientService {
         client = new UserClient();
         client.setChatId(chatId);
         client.setUserClintName("@" + userName);
-        client.setPaid(false);
-        client.setCheckPhoto(false);
+        client.setIsPaid(0);
+        client.setCheckPhoto(0);
         client.setSubscriptionEnd(LocalDateTime.now());
 
         return client;

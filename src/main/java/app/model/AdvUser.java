@@ -16,14 +16,13 @@ public class AdvUser {
     private String adminUserNameOwner;
     private String permissionToGroup;
     private LocalDateTime endPermission;
-    private  boolean started;
+    private  int started;
 
-
-    public boolean isStarted() {
+    public int getStarted() {
         return started;
     }
 
-    public void setStarted(boolean started) {
+    public void setStarted(int started) {
         this.started = started;
     }
 

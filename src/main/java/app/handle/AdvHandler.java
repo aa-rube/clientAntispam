@@ -26,7 +26,7 @@ public class AdvHandler {
         AdvUser user = new AdvUser();
         user.setAdminUserNameOwner("@" + update.getCallbackQuery().getFrom().getUserName());
         user.setAdminChatIdOwner(chatId);
-        user.setStarted(false);
+        user.setStarted(0);
         return user;
     }
 }

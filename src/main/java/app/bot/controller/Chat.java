@@ -89,35 +89,42 @@ public class Chat extends TelegramLongPollingBot {
     private final HashSet<Long> groupsChatId = new HashSet<>();
     private final int aLongTime = (int) (System.currentTimeMillis() / 1000) + 10 * 365 * 24 * 60 * 60;
     private final StringBuilder builder = new StringBuilder();
+    private final RestrictChatMember member = new RestrictChatMember();
+    private final DeleteMessage delete = new DeleteMessage();
 
     @Scheduled(fixedRate = 10800000 * 2)
     private void checkEndTime() {
         LocalDateTime now = LocalDateTime.now();
 
         for (UserClient client : userClientService.findAll()) {
-            if (client.isPaid() && client.getSubscriptionEnd().isBefore(now)) {
-                client.setPaid(false);
+            if (client.getIsPaid() == 1 && client.getSubscriptionEnd().isBefore(now)) {
+                client.setIsPaid(0);
                 userClientService.save(client);
                 executeMsg(userMessage.payIsOff(builder, client));
             }
         }
     }
+
     @Scheduled(fixedRate = 10800000)
     public void getIamToken() {
         yandexMainToken = iAmToken.getIAmToken(botConfig.getYandexToken(), yandexMainToken);
         groupMediaData.clear();
     }
+
     @Override
     public String getBotUsername() {
         return botConfig.getBotName();
     }
+
     public Long getOwnerChatId() {
         return botConfig.getOwnerChatId();
     }
+
     @Override
     public String getBotToken() {
         return botConfig.getToken();
     }
+
     @PostConstruct
     public void init() {
         stopUserWords.clear();
@@ -145,13 +152,12 @@ public class Chat extends TelegramLongPollingBot {
                 .map(AdvUser::getUserName)
                 .toList());
     }
+
     @Override
     public void onUpdateReceived(Update update) {
 
         try {
             if (update.hasCallbackQuery()) {
-                Long chatId = update.getCallbackQuery().getFrom().getId();
-                if(!clients.get(chatId).isPaid() && !chatId.equals(getOwnerChatId())) return;
 
                 userClientHandler(update);
                 callBackDataHandle(update);
@@ -171,7 +177,7 @@ public class Chat extends TelegramLongPollingBot {
             if (update.hasMessage() && update.getMessage().hasText()) {
                 if ((clients.containsKey(update.getMessage().getChatId())
 
-                        && clients.get(update.getMessage().getChatId()).isPaid())
+                        && clients.get(update.getMessage().getChatId()).getIsPaid() == 1)
                         || update.getMessage().getText().equals("/start")
                         || update.getMessage().getChatId().equals(getOwnerChatId())) {
 
@@ -180,7 +186,8 @@ public class Chat extends TelegramLongPollingBot {
                 }
             }
 
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         if (update.hasMessage()) {
             Message message = update.getMessage();
@@ -189,7 +196,7 @@ public class Chat extends TelegramLongPollingBot {
             if (clientsGroups.containsKey(group)) {
                 Long ownerChatId = clientsGroups.get(group);
 
-                if (clients.get(ownerChatId).isPaid()) {
+                if (clients.get(ownerChatId).getIsPaid() == 1) {
 
                     String userName = "@" + message.getFrom().getUserName();
                     if (vipUsers.contains(userName)) {
@@ -206,17 +213,20 @@ public class Chat extends TelegramLongPollingBot {
             }
         }
     }
+
     private void sendPayProveToAdmin(Long chatId, Message message) {
         int msgId = 0;
         try {
             if (message.hasDocument()) {
-               msgId = execute(godMessage.screenDoc(builder,chatId, getOwnerChatId(), message)).getMessageId();
+                msgId = execute(godMessage.screenDoc(builder, chatId, getOwnerChatId(), message)).getMessageId();
             }
-           msgId = execute(godMessage.screenPhoto(builder,chatId, getOwnerChatId(), message)).getMessageId();
+            msgId = execute(godMessage.screenPhoto(builder, chatId, getOwnerChatId(), message)).getMessageId();
             execute(userMessage.waitForCheckThePay(builder, chatId));
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
         sendApproveMsg.put(chatId, msgId);
     }
+
     public void controlPartner(Long ownerChatId, Message message, String userName) {
 
         advService.getAllUsersByUserName(userName).stream()
@@ -224,8 +234,8 @@ public class Chat extends TelegramLongPollingBot {
                         .equals("@" + message.getChat().getUserName())).findFirst()
                 .ifPresent(user -> {
 
-                    if (!user.isStarted()) {
-                        user.setStarted(true);
+                    if (user.getStarted() == 0) {
+                        user.setStarted(1);
                         user.setEndPermission(LocalDateTime.now().plusDays(user.getDaysOfPermission()));
                     }
 
@@ -233,9 +243,9 @@ public class Chat extends TelegramLongPollingBot {
                         stopSpam(ownerChatId, message);
 
                         executeWithoutDelete(message.getChatId(),
-                                partnersMsg.userTimeEndMsgToUser(builder,user));
+                                partnersMsg.userTimeEndMsgToUser(builder, user));
                         executeWithoutDelete(user.getAdminChatIdOwner(),
-                                partnersMsg.userTimeEndMsgToAdmin(builder,user));
+                                partnersMsg.userTimeEndMsgToAdmin(builder, user));
                         return;
                     }
 
@@ -244,9 +254,9 @@ public class Chat extends TelegramLongPollingBot {
                         stopSpam(ownerChatId, message);
 
                         executeWithoutDelete(message.getFrom().getId(),
-                                partnersMsg.postCountEndMsgToUser(builder,user));
+                                partnersMsg.postCountEndMsgToUser(builder, user));
                         executeWithoutDelete(user.getAdminChatIdOwner(),
-                                partnersMsg.postCountEndMsgToAdmin(builder,user));
+                                partnersMsg.postCountEndMsgToAdmin(builder, user));
                         return;
                     }
 
@@ -265,12 +275,13 @@ public class Chat extends TelegramLongPollingBot {
                         user.setId(null);
                         advService.save(user);
                         executeWithoutDelete(message.getFrom().getId(),
-                                partnersMsg.postCounterMsgToUser(builder,user, count));
+                                partnersMsg.postCounterMsgToUser(builder, user, count));
                         return;
                     }
                     stopSpam(ownerChatId, message);
                 });
     }
+
     private void stopSpam(Long ownerChatId, Message message) {
 
         if (message.hasText() && !message.hasPhoto()) {
@@ -301,6 +312,7 @@ public class Chat extends TelegramLongPollingBot {
         }
 
     }
+
     private void deleteMessageIfTheTextIsBad(Long ownerChatId, Message message, String content) {
         stopUserWords.get(ownerChatId).stream()
                 .filter(stopWord -> content.toLowerCase().contains(stopWord.toLowerCase().trim()))
@@ -310,8 +322,9 @@ public class Chat extends TelegramLongPollingBot {
                     sendThisMessage(ownerChatId, message, stopWord);
                 });
     }
+
     private void deleteMessageIfThePhotoIsBad(Long ownerChatId, Message message) throws Exception {
-        if (!clients.get(ownerChatId).isCheckPhoto()) {
+        if (clients.get(ownerChatId).getCheckPhoto() == 1) {
             return;
         }
 
@@ -326,6 +339,7 @@ public class Chat extends TelegramLongPollingBot {
 
                         yandexMainToken, botConfig.getFolderYandexId()).toLowerCase());
     }
+
     private void mute(Long ownerChatId, Message message) {
         Long userId = message.getFrom().getId();
         Long groupId = message.getChatId();
@@ -368,7 +382,7 @@ public class Chat extends TelegramLongPollingBot {
         }
         pretendedMute.put(userId, LocalDateTime.now());
     }
-    private final RestrictChatMember member = new RestrictChatMember();
+
     private void restrictUser(Long chatId, Long userId, int time) {
         member.setChatId(chatId);
         member.setUserId(userId);
@@ -383,6 +397,7 @@ public class Chat extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
         }
     }
+
     private void sendThisMessage(Long ownerChatId, Message message, String badWord) {
 
         try {
@@ -418,6 +433,7 @@ public class Chat extends TelegramLongPollingBot {
             }
         }
     }
+
     private void sendListStopWords(Long chatId) {
         List<StopWordObject> s = stopWordService.getAllStopWordsByOwnerChatId(chatId);
         if (!s.isEmpty()) {
@@ -428,41 +444,43 @@ public class Chat extends TelegramLongPollingBot {
                 int endIndex = Math.min(startIndex + batchSize, s.size());
                 List<StopWordObject> batch = s.subList(startIndex, endIndex);
 
-                executeMsg(stopWordMessage.getListWords(builder,chatId, batch));
+                executeMsg(stopWordMessage.getListWords(builder, chatId, batch));
             }
         } else {
-            executeMsg(stopWordMessage.theListIsEmpty(builder,chatId));
+            executeMsg(stopWordMessage.theListIsEmpty(builder, chatId));
         }
     }
+
     private void callBackDataHandle(Update update) {
         Long chatId = update.getCallbackQuery().getFrom().getId();
         String data = update.getCallbackQuery().getData();
-
+        if (clients.get(chatId).getIsPaid() == 0 && !chatId.equals(getOwnerChatId())) return;
         clearWaitList(chatId);
         startMenuHandler(update, chatId, data);
         stopWordHandler(chatId, data);
         advertisersHandler(update, chatId, data);
         vipUsersHandler(chatId, data);
     }
+
     private void startMenuHandler(Update update, Long chatId, String data) {
         try {
             int i = Integer.parseInt(data);
 
             if (i == 0) {
                 deleteMessage(chatId);
-                executeMsg(startMessage.getStopWordMainMenu(builder,chatId));
+                executeMsg(startMessage.getStopWordMainMenu(builder, chatId));
                 return;
             }
 
             if (i == 3) {
                 deleteMessage(chatId);
-                executeMsg(startMessage.getAdminsMainMenu(builder,chatId));
+                executeMsg(startMessage.getAdminsMainMenu(builder, chatId));
                 return;
             }
 
             if (i == 6) {
                 deleteMessage(chatId);
-                executeMsg(startMessage.getGroupsMainMenu(builder,chatId));
+                executeMsg(startMessage.getGroupsMainMenu(builder, chatId));
             }
 
         } catch (Exception e) {
@@ -471,14 +489,14 @@ public class Chat extends TelegramLongPollingBot {
                 deleteMessage(chatId);
 
                 waitForNewOwnerGroup.add(chatId);
-                executeMsg(ownersGroupsMessage.getEnterNewGroupUserName(builder,chatId));
+                executeMsg(ownersGroupsMessage.getEnterNewGroupUserName(builder, chatId));
                 return;
             }
 
             if (data.equals("myGroupList")) {
                 deleteMessage(chatId);
 
-                executeMsg(ownersGroupsMessage.getMyGroupList(builder,chatId));
+                executeMsg(ownersGroupsMessage.getMyGroupList(builder, chatId));
                 return;
             }
 
@@ -488,34 +506,34 @@ public class Chat extends TelegramLongPollingBot {
                     executeMsg(godMessage.start(builder, getOwnerChatId()));
                     return;
                 }
-                executeMsg(startMessage.getMainClientMenu(builder,chatId, clients.get(chatId).isCheckPhoto()));
+                executeMsg(startMessage.getMainClientMenu(builder, chatId, clients.get(chatId).getCheckPhoto() == 1));
                 return;
             }
 
             if (data.contains("getGroups_")) {
                 deleteMessage(chatId);
                 int index = Integer.parseInt(data.split("_")[1]);
-                executeMsg(advMessage.getGroupsKeyList(builder,chatId, createNewAdvUser.get(chatId).getUserName(), index));
+                executeMsg(advMessage.getGroupsKeyList(builder, chatId, createNewAdvUser.get(chatId).getUserName(), index));
             }
 
             if (data.contains("setG:")) {
                 deleteMessage(chatId);
                 String group = data.split(":")[1];
                 createNewAdvUser.get(chatId).setPermissionToGroup(group);
-                executeMsg(advMessage.addCountPostKeys(builder,chatId, createNewAdvUser.get(chatId)));
+                executeMsg(advMessage.addCountPostKeys(builder, chatId, createNewAdvUser.get(chatId)));
             }
 
             if (data.contains("dayCount_")) {
                 deleteMessage(chatId);
                 AdvUser advUser = advHandler.setDays(data, createNewAdvUser.get(chatId));
                 if (advUser != null) {
-                    executeMsg(advMessage.dataSaved(builder,chatId, advUser));
+                    executeMsg(advMessage.dataSaved(builder, chatId, advUser));
                     createNewAdvUser.put(chatId, advHandler.createNew(update, chatId));
                     init();
                     return;
                 }
                 executeWithoutDelete(chatId, "Что-то пошло не так! Попробуйте снова!");
-                executeMsg(advMessage.addCountPostKeys(builder,chatId, createNewAdvUser.get(chatId)));
+                executeMsg(advMessage.addCountPostKeys(builder, chatId, createNewAdvUser.get(chatId)));
             }
 
             if (data.equals("clientList")
@@ -525,6 +543,7 @@ public class Chat extends TelegramLongPollingBot {
             }
         }
     }
+
     private void stopWordHandler(Long chatId, String data) {
         try {
             int i = Integer.parseInt(data);
@@ -538,11 +557,12 @@ public class Chat extends TelegramLongPollingBot {
             if (i == 5) {
                 deleteMessage(chatId);
                 enterNewStopWord.add(chatId);
-                executeMsg(stopWordMessage.enterNewStopWord(builder,chatId));
+                executeMsg(stopWordMessage.enterNewStopWord(builder, chatId));
                 init();
             }
 
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
     }
 
     private void advertisersHandler(Update update, Long chatId, String data) {
@@ -552,18 +572,18 @@ public class Chat extends TelegramLongPollingBot {
             if (i == 13) {
                 deleteMessage(chatId);
                 createNewAdvUser.remove(chatId);
-                executeMsg(advMessage.getAdvertisersStart(builder,chatId));
+                executeMsg(advMessage.getAdvertisersStart(builder, chatId));
             }
 
             if (i == 14) {
                 deleteMessage(chatId);
                 createNewAdvUser.put(chatId, advHandler.createNew(update, chatId));
-                executeMsg(advMessage.addAdvertiser(builder,chatId));
+                executeMsg(advMessage.addAdvertiser(builder, chatId));
             }
 
             if (i == 15) {
                 deleteMessage(chatId);
-                executeMsg(advMessage.getListUsersPermission(builder,chatId));
+                executeMsg(advMessage.getListUsersPermission(builder, chatId));
             }
 
         } catch (Exception e) {
@@ -578,23 +598,24 @@ public class Chat extends TelegramLongPollingBot {
             if (i == 88) {
                 deleteMessage(chatId);
                 waitForNewVipUser.remove(chatId);
-                executeMsg(adminMessage.vipUsersMainMenu(builder,chatId));
+                executeMsg(adminMessage.vipUsersMainMenu(builder, chatId));
                 return;
             }
 
             if (i == 87) {
                 deleteMessage(chatId);
                 waitForNewVipUser.add(chatId);
-                executeMsg(adminMessage.addVipUsers(builder,"", chatId));
+                executeMsg(adminMessage.addVipUsers(builder, "", chatId));
             }
 
             if (i == 86) {
                 deleteMessage(chatId);
                 waitForNewVipUser.remove(chatId);
-                executeMsg(adminMessage.getVipListUser(builder,chatId));
+                executeMsg(adminMessage.getVipListUser(builder, chatId));
             }
 
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
     }
 
     private void userClientHandler(Update update) {
@@ -604,9 +625,9 @@ public class Chat extends TelegramLongPollingBot {
 
         if (data.equals("5day")) {
             deleteMessage(chatId);
-            executeMsg(userMessage.payUpdate(builder,chatId, 2));
+            executeMsg(userMessage.payUpdate(builder, chatId, 2));
             clients.put(chatId, userClientService.findByChatId(chatId).get());
-            executeMsg(startMessage.getMainClientMenu(builder,chatId, clients.get(chatId).isCheckPhoto()));
+            executeMsg(startMessage.getMainClientMenu(builder, chatId, clients.get(chatId).getCheckPhoto() == 1));
             executeMsg(userMessage.fiveDaysTryMsg(builder, getOwnerChatId(), clients.get(chatId)));
             return;
         }
@@ -616,11 +637,11 @@ public class Chat extends TelegramLongPollingBot {
             Long chatUserId = Long.valueOf(payData[1]);
 
             if (payData.length == 2) {
-                executeMsg(userMessage.payUpdate(builder,chatUserId, 1));
+                executeMsg(userMessage.payUpdate(builder, chatUserId, 1));
                 clients.put(chatUserId, userClientService.findByChatId(chatUserId).get());
-                executeMsg(startMessage.getMainClientMenu(builder,chatUserId, clients.get(chatUserId).isCheckPhoto()));
+                executeMsg(startMessage.getMainClientMenu(builder, chatUserId, clients.get(chatUserId).getCheckPhoto() == 1));
             } else {
-                executeMsg(userMessage.payUpdate(builder,chatUserId, 0));
+                executeMsg(userMessage.payUpdate(builder, chatUserId, 0));
             }
             editKeyboard(chatUserId);
             return;
@@ -629,7 +650,7 @@ public class Chat extends TelegramLongPollingBot {
         if (data.equals("sendPayScreen")) {
             deleteMessage(chatId);
             waitForScreenShot.add(chatId);
-            executeMsg(userMessage.waitForScreenShot(builder,chatId));
+            executeMsg(userMessage.waitForScreenShot(builder, chatId));
             return;
         }
 
@@ -638,15 +659,16 @@ public class Chat extends TelegramLongPollingBot {
             String userClientName = update.getCallbackQuery().getFrom().getUserName();
             UserClient user = userClientService.getNewClient(chatId, userClientName);
             userClientService.save(user);
-            executeMsg(userMessage.pretendedToPay(builder,chatId));
+            executeMsg(userMessage.pretendedToPay(builder, chatId));
             return;
         }
 
         if (data.equals("switchPhoto")) {
+            if (clients.get(chatId).getIsPaid() == 0 && !chatId.equals(getOwnerChatId())) return;
             deleteMessage(chatId);
-            clients.get(chatId).setCheckPhoto(!clients.get(chatId).isCheckPhoto());
+            clients.get(chatId).setCheckPhoto(clients.get(chatId).getCheckPhoto() == 1 ? 0 : 1);
             userClientService.save(clients.get(chatId));
-            executeMsg(startMessage.getMainClientMenu(builder,chatId, clients.get(chatId).isCheckPhoto()));
+            executeMsg(startMessage.getMainClientMenu(builder, chatId, clients.get(chatId).getCheckPhoto() == 1));
         }
     }
 
@@ -661,20 +683,22 @@ public class Chat extends TelegramLongPollingBot {
                 return;
             }
 
-            if (clients.get(chatId) != null && clients.get(chatId).isPaid() && clients.get(chatId).isTryPeriod()) {
+            if (clients.get(chatId) != null && clients.get(chatId).getIsPaid() == 1 && clients.get(chatId).getTryPeriod() == 1) {
                 clearWaitList(chatId);
-                executeMsg(startMessage.getMainClientMenu(builder,chatId, clients.get(chatId).isCheckPhoto()));
+                executeMsg(startMessage.getMainClientMenu(builder, chatId, clients.get(chatId).getCheckPhoto() == 1));
                 return;
             }
 
-            if (clients.get(chatId) != null && !clients.get(chatId).isPaid() && clients.get(chatId).isTryPeriod()) {
+            if (clients.get(chatId) != null && clients.get(chatId).getIsPaid() == 0 && clients.get(chatId).getTryPeriod() == 1) {
                 clearWaitList(chatId);
-                executeMsg(userMessage.payIsOff(builder,clients.get(chatId)));
+                executeMsg(userMessage.payIsOff(builder, clients.get(chatId)));
                 return;
             }
 
-            executeMsg(userMessage.getStartMessage(builder,chatId));
+            executeMsg(userMessage.getStartMessage(builder, chatId));
         }
+
+        if (clients.get(chatId).getIsPaid() == 0 && !chatId.equals(getOwnerChatId())) return;
 
         if (text.contains("/deleteClient_")
                 && chatId.equals(getOwnerChatId())) {
@@ -685,7 +709,7 @@ public class Chat extends TelegramLongPollingBot {
         if (text.contains("/deleteStopWord_")) {
 
             if (stopWordHandler.deleteTheWord(text)) {
-                executeMsg(stopWordMessage.deletedSuccess(builder,chatId));
+                executeMsg(stopWordMessage.deletedSuccess(builder, chatId));
                 init();
 
             } else {
@@ -699,9 +723,9 @@ public class Chat extends TelegramLongPollingBot {
                 int id = Integer.parseInt(text.trim().split("_")[1]);
 
                 if (advService.deleteByUserId(chatId, id)) {
-                    executeMsg(advMessage.getListUsersPermission(builder,chatId));
+                    executeMsg(advMessage.getListUsersPermission(builder, chatId));
                 } else {
-                    executeMsg(advMessage.getListUsersPermission(builder,chatId));
+                    executeMsg(advMessage.getListUsersPermission(builder, chatId));
                     executeWithoutDelete(chatId, "Что-то пошло не так! Попробуйте снова!");
                 }
                 init();
@@ -720,7 +744,7 @@ public class Chat extends TelegramLongPollingBot {
         }
 
         if (text.contains("/deleteVip_")) {
-            int id  = Integer.parseInt(text.split("_")[1]);
+            int id = Integer.parseInt(text.split("_")[1]);
             if (vipService.delete(chatId, id)) {
                 init();
                 executeWithoutDelete(chatId, "username удален из VIP-списка");
@@ -731,7 +755,7 @@ public class Chat extends TelegramLongPollingBot {
         }
 
         if (text.contains("/deleteMyGroup_")) {
-            int id  = Integer.parseInt(text.split("_")[1]);
+            int id = Integer.parseInt(text.split("_")[1]);
             if (groupListenService.delete(chatId, id)) {
                 init();
                 executeWithoutDelete(chatId, "Группа удалена из списка");
@@ -743,12 +767,12 @@ public class Chat extends TelegramLongPollingBot {
 
         if (waitForNewVipUser.contains(chatId)) {
 
-            if (vipUserHandle.addNewVipUser(chatId,text)) {
-                executeMsg(adminMessage.addVipUsers(builder,"Данные сохранены!\n", chatId));
+            if (vipUserHandle.addNewVipUser(chatId, text)) {
+                executeMsg(adminMessage.addVipUsers(builder, "Данные сохранены!\n", chatId));
                 init();
                 return;
             }
-            executeMsg(adminMessage.addVipUsers(builder,"Что-то пошло не так", chatId));
+            executeMsg(adminMessage.addVipUsers(builder, "Что-то пошло не так", chatId));
             return;
         }
 
@@ -756,19 +780,19 @@ public class Chat extends TelegramLongPollingBot {
 
             if (stopWordHandler.saveTheWord(chatId, text)) {
                 executeWithoutDelete(chatId, "Cохраненo! Можно добавить еще.");
-                executeMsg(stopWordMessage.enterNewStopWord(builder,chatId));
+                executeMsg(stopWordMessage.enterNewStopWord(builder, chatId));
                 init();
             } else {
                 executeMsg(startMessage.getSendMessage(chatId,
                         text + "Что-то пошло не так! Попробуйте снова!", null));
-                executeMsg(stopWordMessage.enterNewStopWord(builder,chatId));
+                executeMsg(stopWordMessage.enterNewStopWord(builder, chatId));
             }
 
             return;
         }
 
         if (waitForNewOwnerGroup.contains(chatId)) {
-            executeMsg(ownersGroupsMessage.getMsgAboutSaveNewGroup(builder,chatId,
+            executeMsg(ownersGroupsMessage.getMsgAboutSaveNewGroup(builder, chatId,
                     groupListenService.save(chatId, text)));
             return;
         }
@@ -776,10 +800,10 @@ public class Chat extends TelegramLongPollingBot {
         if (createNewAdvUser.containsKey(chatId)) {
             if (text.contains("@")) {
                 createNewAdvUser.get(chatId).setUserName(text.trim());
-                executeMsg(advMessage.getGroupsKeyList(builder,chatId, text, 0));
+                executeMsg(advMessage.getGroupsKeyList(builder, chatId, text, 0));
                 return;
             }
-            executeMsg(advMessage.somethingWentWrong(builder,chatId));
+            executeMsg(advMessage.somethingWentWrong(builder, chatId));
         }
     }
 
@@ -791,9 +815,10 @@ public class Chat extends TelegramLongPollingBot {
         user.setPostCount(user.getPostCount() + count);
         advService.save(user);
 
-        executeMsg(advMessage.getListUsersPermission(builder,chatId));
+        executeMsg(advMessage.getListUsersPermission(builder, chatId));
         init();
     }
+
     private void executeWithoutDelete(Long chatId, String text) {
         SendMessage msg = new SendMessage();
         msg.setChatId(chatId);
@@ -803,6 +828,7 @@ public class Chat extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
         }
     }
+
     private void executeMsg(SendMessage msg) {
         if (!messageToDelete.isEmpty()) {
             Long chatId = Long.valueOf(msg.getChatId());
@@ -815,7 +841,8 @@ public class Chat extends TelegramLongPollingBot {
 
                     try {
                         execute(d);
-                    } catch (TelegramApiException e) {}
+                    } catch (TelegramApiException e) {
+                    }
                 }
                 messageToDelete.remove(chatId);
             }
@@ -861,6 +888,7 @@ public class Chat extends TelegramLongPollingBot {
             }
         }
     }
+
     public void deleteMessage(Long chatId) {
         DeleteMessage deleteMessage = new DeleteMessage();
         deleteMessage.setChatId(chatId);
@@ -870,7 +898,7 @@ public class Chat extends TelegramLongPollingBot {
         } catch (Exception e) {
         }
     }
-    private final DeleteMessage delete = new DeleteMessage();
+
     private void deleteBadMessage(Long chatId, int messageId) {
         delete.setChatId(chatId);
         delete.setMessageId(messageId);
@@ -879,6 +907,7 @@ public class Chat extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
         }
     }
+
     private void editKeyboard(Long chatUserId) {
         EditMessageReplyMarkup edit = new EditMessageReplyMarkup();
         edit.setChatId(getOwnerChatId());
@@ -891,9 +920,9 @@ public class Chat extends TelegramLongPollingBot {
             throw new RuntimeException(e);
         }
     }
+
     private void clearWaitList(Long chatId) {
         enterNewStopWord.remove(chatId);
-
         waitForNewOwnerGroup.remove(chatId);
         waitForNewVipUser.remove(chatId);
     }

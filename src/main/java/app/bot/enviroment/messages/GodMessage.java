@@ -51,7 +51,7 @@ public class GodMessage {
         for (UserClient client : userClientService.findAll()) {
             ++i;
             builder.append(i).append(". ").append(client.getUserClintName()).append("\n");
-            if (client.isPaid()) {
+            if (client.getIsPaid() == 1) {
                 builder.append("Оплачено до: ")
                         .append(client.getSubscriptionEnd().toString().substring(0, 10));
             } else {

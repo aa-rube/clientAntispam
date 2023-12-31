@@ -59,8 +59,8 @@ public class UserMessage {
 
             if (clientOpt.isPresent()) {
                 UserClient user = clientOpt.get();
-                user.setPaid(true);
-                user.setTryPeriod(true);
+                user.setIsPaid(1);
+                user.setTryPeriod(1);
                 user.setSubscriptionEnd(user.getSubscriptionEnd().plusDays(30));
                 userClientService.save(user);
 
@@ -76,8 +76,8 @@ public class UserMessage {
 
             if (clientOpt.isPresent()) {
                 UserClient user = clientOpt.get();
-                user.setPaid(true);
-                user.setTryPeriod(true);
+                user.setIsPaid(1);
+                user.setTryPeriod(1);
                 user.setSubscriptionEnd(user.getSubscriptionEnd().plusDays(5));
                 userClientService.save(user);
 
@@ -101,13 +101,13 @@ public class UserMessage {
         builder.append("К сожалению подписка зпкончилась. Для продолжения использования необходимо оплатить подписку.\n")
                 .append("Что бы уточнить детали свяжитесь с @biker_niga");
 
-        boolean tryPeriodIsOff = false;
+        int tryPeriodIsOff = 0;
         Optional<UserClient> userClientOptional = userClientService.findByChatId(client.getChatId());
         if (userClientOptional.isPresent()) {
-            tryPeriodIsOff = userClientOptional.get().isTryPeriod();
+            tryPeriodIsOff = userClientOptional.get().getTryPeriod();
         }
 
-        return getSendMessage(client.getChatId(), builder.toString(), keyboard.startPay(tryPeriodIsOff));
+        return getSendMessage(client.getChatId(), builder.toString(), keyboard.startPay(tryPeriodIsOff == 1));
     }
 
     public SendMessage fiveDaysTryMsg(StringBuilder builder, Long ownerChatId, UserClient userClient) {
